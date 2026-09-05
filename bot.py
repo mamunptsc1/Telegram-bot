@@ -1,7 +1,6 @@
-import os
-import ast
+import re
 import math
-import operator
+import sympy as sp
 
 from telegram import Update
 from telegram.ext import (
@@ -9,139 +8,273 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     ContextTypes,
-    filters,
+    filters
 )
 
 # =========================
 # BOT TOKEN
 # =========================
-BOT_TOKEN = "8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY"
+
+TOKEN = "8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY"
 
 
 # =========================
-# SAFE CALCULATOR
+# CONSTANTS
 # =========================
-OPERATORS = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.Pow: operator.pow,
-    ast.Mod: operator.mod,
-    ast.USub: operator.neg,
-    ast.UAdd: operator.pos,
+
+x = sp.Symbol("x")
+
+ALLOWED = {
+    "pi": sp.pi,
+    "e": sp.E,
+    "sqrt": sp.sqrt,
+    "sin": sp.sin,
+    "cos": sp.cos,
+    "tan": sp.tan,
+    "asin": sp.asin,
+    "acos": sp.acos,
+    "atan": sp.atan,
+    "log": sp.log,
+    "ln": sp.log,
+    "abs": sp.Abs,
+    "factorial": sp.factorial,
+    "floor": sp.floor,
+    "ceil": sp.ceiling,
 }
 
 
-def calculate(expression):
-    expression = expression.replace("×", "*")
-    expression = expression.replace("÷", "/")
-    expression = expression.replace("^", "**")
+# =========================
+# NUMBER SHORTCUTS
+# =========================
 
-    tree = ast.parse(expression, mode="eval")
+def convert_short_numbers(text):
 
-    def solve(node):
+    # 1k = 1000
+    # 1.5k = 1500
+    # 2m = 2000000
+    # 3b = 3000000000
 
-        if isinstance(node, ast.Expression):
-            return solve(node.body)
+    multipliers = {
+        "k": 1000,
+        "K": 1000,
+        "m": 1000000,
+        "M": 1000000,
+        "b": 1000000000,
+        "B": 1000000000,
+    }
 
-        if isinstance(node, ast.Constant):
-            if isinstance(node.value, (int, float)):
-                return node.value
-            raise ValueError()
+    pattern = r'(?<![a-zA-Z0-9_.])(\d+(?:\.\d+)?)([kKmMbB])'
 
-        if isinstance(node, ast.BinOp):
+    def replace(match):
+        number = float(match.group(1))
+        suffix = match.group(2)
 
-            if type(node.op) not in OPERATORS:
-                raise ValueError()
+        value = number * multipliers[suffix]
 
-            left = solve(node.left)
-            right = solve(node.right)
+        if value.is_integer():
+            return str(int(value))
 
-            if isinstance(node.op, ast.Pow) and abs(right) > 100:
-                raise ValueError()
+        return str(value)
 
-            return OPERATORS[type(node.op)](left, right)
+    return re.sub(pattern, replace, text)
 
-        if isinstance(node, ast.UnaryOp):
 
-            if type(node.op) not in OPERATORS:
-                raise ValueError()
+# =========================
+# PERCENTAGE
+# =========================
 
-            return OPERATORS[type(node.op)](
-                solve(node.operand)
-            )
+def convert_percentage(text):
 
-        raise ValueError()
+    # 50% → 0.5
+    text = re.sub(
+        r'(\d+(?:\.\d+)?)%',
+        r'(\1/100)',
+        text
+    )
 
-    result = solve(tree)
+    return text
 
-    if not math.isfinite(result):
-        raise ValueError()
+
+# =========================
+# PREPARE EXPRESSION
+# =========================
+
+def prepare_expression(text):
+
+    text = text.strip()
+
+    # Remove spaces
+    text = text.replace(" ", "")
+
+    # Multiplication symbols
+    text = text.replace("×", "*")
+    text = text.replace("÷", "/")
+
+    # Power
+    text = text.replace("^", "**")
+
+    # Percentage
+    text = convert_percentage(text)
+
+    # k / m / b
+    text = convert_short_numbers(text)
+
+    # Degree support
+    text = text.replace("degrees", "deg")
+
+    return text
+
+
+# =========================
+# CALCULATOR
+# =========================
+
+def calculate(text):
+
+    expression = prepare_expression(text)
+
+    # Basic security check
+    if len(expression) > 300:
+        raise ValueError("Expression too long")
+
+    # Only allow safe characters
+    if not re.fullmatch(
+        r'[0-9a-zA-Z_+\-*/().,%\s]+',
+        expression
+    ):
+        raise ValueError("Invalid characters")
+
+    result = sp.sympify(
+        expression,
+        locals=ALLOWED
+    )
+
+    # Make sure it is actually a number
+    if not result.is_number:
+        raise ValueError("Not a number")
 
     return result
 
 
 # =========================
-# START COMMAND
+# FORMAT RESULT
 # =========================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+def format_result(result):
+
+    # Integer
+    if result.is_Integer:
+        return str(result)
+
+    # Float / decimal
+    try:
+        numeric = sp.N(result, 15)
+
+        if abs(float(numeric)) >= 1e12:
+            return f"{float(numeric):,.10g}"
+
+        return str(numeric)
+
+    except:
+        return str(result)
+
+
+# =========================
+# START
+# =========================
+
+async def start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
 
     await update.message.reply_text(
-        "🧮 Welcome to Calculator Bot!\n\n"
-        "Send me any calculation.\n\n"
+        "🧮 Google-style Calculator\n\n"
+        "আমি বিভিন্ন ধরনের হিসাব করতে পারি।\n\n"
+
         "Examples:\n"
         "25+35\n"
-        "100/4\n"
-        "12*8\n"
-        "(10+5)*2\n"
-        "2^10\n\n"
-        "Use /help for more information."
+        "150/50*3\n"
+        "6k*2k\n"
+        "50%\n"
+        "sqrt(144)\n"
+        "2^10\n"
+        "sin(pi/2)\n"
+        "log(100)\n"
+        "factorial(5)\n\n"
+
+        "📌 /help লিখে সব function দেখুন।"
     )
 
 
 # =========================
-# HELP COMMAND
+# HELP
 # =========================
+
 async def help_command(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
 
     await update.message.reply_text(
-        "🧮 Calculator Help\n\n"
-        "Supported operators:\n\n"
-        "+  Addition\n"
-        "-  Subtraction\n"
-        "*  Multiplication\n"
-        "/  Division\n"
-        "^  Power\n"
-        "%  Modulo\n\n"
-        "Example:\n"
-        "(25+15)*2"
+        "🧮 Calculator Functions\n\n"
+
+        "Basic:\n"
+        "25+35\n"
+        "100-25\n"
+        "12*8\n"
+        "100/4\n\n"
+
+        "Power:\n"
+        "2^10\n"
+        "5^3\n\n"
+
+        "Percentage:\n"
+        "50%\n"
+        "15%*200\n\n"
+
+        "Short numbers:\n"
+        "6k\n"
+        "2m\n"
+        "1.5k\n"
+        "6k*2k\n\n"
+
+        "Math functions:\n"
+        "sqrt(144)\n"
+        "sin(pi/2)\n"
+        "cos(0)\n"
+        "tan(pi/4)\n"
+        "log(100)\n"
+        "ln(e)\n"
+        "abs(-25)\n"
+        "factorial(5)\n\n"
+
+        "Constants:\n"
+        "pi\n"
+        "e"
     )
 
 
 # =========================
-# CALCULATOR
+# CALCULATOR MESSAGE
 # =========================
+
 async def calculator(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
 
-    expression = update.message.text.strip()
+    text = update.message.text.strip()
 
     try:
 
-        result = calculate(expression)
+        result = calculate(text)
 
-        if isinstance(result, float) and result.is_integer():
-            result = int(result)
+        formatted = format_result(result)
 
         await update.message.reply_text(
-            f"🧮 {expression}\n\n"
-            f"= {result}"
+            f"🧮 {text}\n\n"
+            f"= {formatted}"
         )
 
     except ZeroDivisionError:
@@ -153,24 +286,27 @@ async def calculator(
     except Exception:
 
         await update.message.reply_text(
-            "❌ ভুল হিসাব!\n\n"
+            "❌ হিসাবটি বুঝতে পারিনি।\n\n"
             "Example:\n"
             "25+35\n"
-            "100/4\n"
-            "(10+5)*2"
+            "150/50*3\n"
+            "sqrt(144)\n"
+            "2^10"
         )
 
 
 # =========================
 # RUN BOT
 # =========================
+
 def main():
 
-    if BOT_TOKEN == "PASTE_YOUR_BOT_TOKEN_HERE":
-        print("❌ Please add your Bot Token.")
+    if TOKEN == "তোমার_BOT_TOKEN":
+
+        print("❌ Bot Token বসাও।")
         return
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(TOKEN).build()
 
     app.add_handler(
         CommandHandler("start", start)
@@ -191,6 +327,10 @@ def main():
 
     app.run_polling()
 
+
+# =========================
+# START
+# =========================
 
 if __name__ == "__main__":
     main()
