@@ -930,7 +930,10 @@ async def calculator(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/topcrypto"
         )
 
-
+async def website(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "🛒 Kholahati Bazar\nhttps://kholahati-bazar.vercel.app/"
+    )
 # ============================================================
 # START BOT
 # ============================================================
@@ -944,6 +947,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("topcrypto", topcrypto_command))
+    app.add_handler(CommandHandler("website", website))
 
     app.add_handler(
         MessageHandler(
