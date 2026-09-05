@@ -32,7 +32,7 @@ from telegram.ext import (
 # ============================================================
 # BOT TOKEN — put your NEW BotFather token here
 # ============================================================
-TOKEN = "PASTE_YOUR_NEW_BOT_TOKEN_HERE"
+TOKEN = "8825245676:AAFPYAmmLB2cul4GQKTC3zan3X-RMMlglBU"
 
 # ============================================================
 # SCIENTIFIC FUNCTIONS / CONSTANTS
