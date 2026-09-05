@@ -621,7 +621,7 @@ async def calculator(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 def main():
     if TOKEN == "8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY":
-        print("❌ Bot Token বসাও।")
+        print("8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY")
         return
 
     app = Application.builder().token(TOKEN).build()
