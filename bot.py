@@ -11,61 +11,125 @@ from telegram.ext import (
     filters
 )
 
-# =========================
+# ==================================================
 # BOT TOKEN
-# =========================
+# ==================================================
 
 TOKEN = "8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY"
 
 
-# =========================
-# CONSTANTS
-# =========================
-
-x = sp.Symbol("x")
+# ==================================================
+# SCIENTIFIC FUNCTIONS
+# ==================================================
 
 ALLOWED = {
     "pi": sp.pi,
     "e": sp.E,
+
     "sqrt": sp.sqrt,
+
     "sin": sp.sin,
     "cos": sp.cos,
     "tan": sp.tan,
+
     "asin": sp.asin,
     "acos": sp.acos,
     "atan": sp.atan,
+
+    "sinh": sp.sinh,
+    "cosh": sp.cosh,
+    "tanh": sp.tanh,
+
     "log": sp.log,
     "ln": sp.log,
+
     "abs": sp.Abs,
+
     "factorial": sp.factorial,
+
     "floor": sp.floor,
     "ceil": sp.ceiling,
+
+    "exp": sp.exp
 }
 
 
-# =========================
-# NUMBER SHORTCUTS
-# =========================
+# ==================================================
+# UNIT CONVERSION
+# ==================================================
+
+UNITS = {
+
+    # Length
+    "km": 1000,
+    "m": 1,
+    "cm": 0.01,
+    "mm": 0.001,
+
+    "mile": 1609.344,
+    "mi": 1609.344,
+
+    "yard": 0.9144,
+    "yd": 0.9144,
+
+    "foot": 0.3048,
+    "feet": 0.3048,
+    "ft": 0.3048,
+
+    "inch": 0.0254,
+    "in": 0.0254,
+
+    # Weight
+    "kg": 1,
+    "g": 0.001,
+    "mg": 0.000001,
+
+    "lb": 0.45359237,
+    "pound": 0.45359237,
+
+    "oz": 0.028349523125,
+    "ounce": 0.028349523125,
+
+    # Volume
+    "l": 1,
+    "liter": 1,
+    "litre": 1,
+
+    "ml": 0.001,
+    "milliliter": 0.001,
+
+    "gallon": 3.785411784,
+    "gal": 3.785411784,
+
+    "quart": 0.946352946,
+    "qt": 0.946352946,
+
+    "pint": 0.473176473,
+    "pt": 0.473176473
+}
+
+
+# ==================================================
+# SHORT NUMBERS
+# ==================================================
 
 def convert_short_numbers(text):
-
-    # 1k = 1000
-    # 1.5k = 1500
-    # 2m = 2000000
-    # 3b = 3000000000
 
     multipliers = {
         "k": 1000,
         "K": 1000,
+
         "m": 1000000,
         "M": 1000000,
+
         "b": 1000000000,
-        "B": 1000000000,
+        "B": 1000000000
     }
 
-    pattern = r'(?<![a-zA-Z0-9_.])(\d+(?:\.\d+)?)([kKmMbB])'
+    pattern = r'(?<![a-zA-Z0-9.])(\d+(?:\.\d+)?)([kKmMbB])'
 
     def replace(match):
+
         number = float(match.group(1))
         suffix = match.group(2)
 
@@ -79,109 +143,274 @@ def convert_short_numbers(text):
     return re.sub(pattern, replace, text)
 
 
-# =========================
+# ==================================================
 # PERCENTAGE
-# =========================
+# ==================================================
 
 def convert_percentage(text):
 
-    # 50% → 0.5
-    text = re.sub(
+    return re.sub(
         r'(\d+(?:\.\d+)?)%',
         r'(\1/100)',
         text
     )
 
-    return text
+
+# ==================================================
+# UNIT CONVERSION
+# Example:
+# 10 km to mile
+# 5 kg to lb
+# ==================================================
+
+def unit_conversion(text):
+
+    pattern = (
+        r'^\s*'
+        r'([-+]?\d+(?:\.\d+)?)'
+        r'\s*'
+        r'([a-zA-Z]+)'
+        r'\s+(?:to|in|into)\s+'
+        r'([a-zA-Z]+)'
+        r'\s*$'
+    )
+
+    match = re.match(pattern, text.lower())
+
+    if not match:
+        return None
+
+    value = float(match.group(1))
+    from_unit = match.group(2)
+    to_unit = match.group(3)
+
+    if from_unit not in UNITS:
+        raise ValueError("Unknown unit")
+
+    if to_unit not in UNITS:
+        raise ValueError("Unknown unit")
+
+    meters_or_base = value * UNITS[from_unit]
+
+    result = meters_or_base / UNITS[to_unit]
+
+    return result
 
 
-# =========================
+# ==================================================
+# TEMPERATURE
+# ==================================================
+
+def temperature_conversion(text):
+
+    pattern = (
+        r'^\s*'
+        r'([-+]?\d+(?:\.\d+)?)'
+        r'\s*'
+        r'(c|f|k)'
+        r'\s+(?:to|in|into)\s+'
+        r'(c|f|k)'
+        r'\s*$'
+    )
+
+    match = re.match(pattern, text.lower())
+
+    if not match:
+        return None
+
+    value = float(match.group(1))
+
+    from_unit = match.group(2)
+    to_unit = match.group(3)
+
+    # Celsius -> Celsius
+    if from_unit == "c":
+        celsius = value
+
+    # Fahrenheit -> Celsius
+    elif from_unit == "f":
+        celsius = (value - 32) * 5 / 9
+
+    # Kelvin -> Celsius
+    else:
+        celsius = value - 273.15
+
+    # Celsius -> target
+    if to_unit == "c":
+        return celsius
+
+    if to_unit == "f":
+        return (celsius * 9 / 5) + 32
+
+    if to_unit == "k":
+        return celsius + 273.15
+
+
+# ==================================================
+# COMBINATION nCr
+# Example: 5C2
+# ==================================================
+
+def combination(text):
+
+    match = re.fullmatch(
+        r'\s*(\d+)\s*[cC]\s*(\d+)\s*',
+        text
+    )
+
+    if not match:
+        return None
+
+    n = int(match.group(1))
+    r = int(match.group(2))
+
+    if r > n:
+        raise ValueError()
+
+    return math.comb(n, r)
+
+
+# ==================================================
+# PERMUTATION nPr
+# Example: 5P2
+# ==================================================
+
+def permutation(text):
+
+    match = re.fullmatch(
+        r'\s*(\d+)\s*[pP]\s*(\d+)\s*',
+        text
+    )
+
+    if not match:
+        return None
+
+    n = int(match.group(1))
+    r = int(match.group(2))
+
+    if r > n:
+        raise ValueError()
+
+    return math.perm(n, r)
+
+
+# ==================================================
 # PREPARE EXPRESSION
-# =========================
+# ==================================================
 
 def prepare_expression(text):
 
     text = text.strip()
 
-    # Remove spaces
     text = text.replace(" ", "")
 
-    # Multiplication symbols
     text = text.replace("×", "*")
+
     text = text.replace("÷", "/")
 
-    # Power
     text = text.replace("^", "**")
 
-    # Percentage
+    text = text.replace("π", "pi")
+
     text = convert_percentage(text)
 
-    # k / m / b
     text = convert_short_numbers(text)
-
-    # Degree support
-    text = text.replace("degrees", "deg")
 
     return text
 
 
-# =========================
-# CALCULATOR
-# =========================
+# ==================================================
+# CALCULATE
+# ==================================================
 
 def calculate(text):
 
+    # Unit conversion
+    result = unit_conversion(text)
+
+    if result is not None:
+        return result
+
+    # Temperature
+    result = temperature_conversion(text)
+
+    if result is not None:
+        return result
+
+    # nCr
+    result = combination(text)
+
+    if result is not None:
+        return result
+
+    # nPr
+    result = permutation(text)
+
+    if result is not None:
+        return result
+
     expression = prepare_expression(text)
 
-    # Basic security check
     if len(expression) > 300:
-        raise ValueError("Expression too long")
+        raise ValueError()
 
-    # Only allow safe characters
     if not re.fullmatch(
         r'[0-9a-zA-Z_+\-*/().,%\s]+',
         expression
     ):
-        raise ValueError("Invalid characters")
+        raise ValueError()
 
     result = sp.sympify(
         expression,
         locals=ALLOWED
     )
 
-    # Make sure it is actually a number
     if not result.is_number:
-        raise ValueError("Not a number")
+        raise ValueError()
 
     return result
 
 
-# =========================
+# ==================================================
 # FORMAT RESULT
-# =========================
+# ==================================================
 
 def format_result(result):
 
-    # Integer
-    if result.is_Integer:
-        return str(result)
-
-    # Float / decimal
     try:
-        numeric = sp.N(result, 15)
 
-        if abs(float(numeric)) >= 1e12:
-            return f"{float(numeric):,.10g}"
+        if isinstance(result, int):
+            return str(result)
 
-        return str(numeric)
+        if isinstance(result, float):
+
+            if result.is_integer():
+                return str(int(result))
+
+            return f"{result:.12g}"
+
+        if result.is_Integer:
+            return str(result)
+
+        value = sp.N(result, 15)
+
+        if value.is_real:
+
+            number = float(value)
+
+            if number.is_integer():
+                return str(int(number))
+
+        return str(value)
 
     except:
+
         return str(result)
 
 
-# =========================
+# ==================================================
 # START
-# =========================
+# ==================================================
 
 async def start(
     update: Update,
@@ -189,27 +418,44 @@ async def start(
 ):
 
     await update.message.reply_text(
-        "🧮 Google-style Calculator\n\n"
-        "আমি বিভিন্ন ধরনের হিসাব করতে পারি।\n\n"
+        "🧮 FULL CALCULATOR BOT\n\n"
 
-        "Examples:\n"
+        "Basic:\n"
         "25+35\n"
-        "150/50*3\n"
-        "6k*2k\n"
-        "50%\n"
+        "100/4\n"
+        "(10+5)*2\n\n"
+
+        "Scientific:\n"
         "sqrt(144)\n"
         "2^10\n"
         "sin(pi/2)\n"
-        "log(100)\n"
-        "factorial(5)\n\n"
+        "log(100)\n\n"
 
-        "📌 /help লিখে সব function দেখুন।"
+        "Percentage:\n"
+        "50%\n\n"
+
+        "Units:\n"
+        "10 km to mile\n"
+        "5 kg to lb\n"
+        "100 cm to m\n\n"
+
+        "Temperature:\n"
+        "100 c to f\n"
+        "32 f to c\n\n"
+
+        "Combinations:\n"
+        "5C2\n\n"
+
+        "Permutations:\n"
+        "5P2\n\n"
+
+        "সব command দেখতে /help লিখুন।"
     )
 
 
-# =========================
+# ==================================================
 # HELP
-# =========================
+# ==================================================
 
 async def help_command(
     update: Update,
@@ -217,29 +463,32 @@ async def help_command(
 ):
 
     await update.message.reply_text(
-        "🧮 Calculator Functions\n\n"
+        "🧮 CALCULATOR HELP\n\n"
 
-        "Basic:\n"
+        "━━━━━━━━━━━━━━\n"
+        "BASIC\n"
+        "━━━━━━━━━━━━━━\n"
         "25+35\n"
         "100-25\n"
         "12*8\n"
-        "100/4\n\n"
+        "100/4\n"
+        "(10+5)*2\n\n"
 
-        "Power:\n"
+        "━━━━━━━━━━━━━━\n"
+        "POWER\n"
+        "━━━━━━━━━━━━━━\n"
         "2^10\n"
         "5^3\n\n"
 
-        "Percentage:\n"
+        "━━━━━━━━━━━━━━\n"
+        "PERCENTAGE\n"
+        "━━━━━━━━━━━━━━\n"
         "50%\n"
         "15%*200\n\n"
 
-        "Short numbers:\n"
-        "6k\n"
-        "2m\n"
-        "1.5k\n"
-        "6k*2k\n\n"
-
-        "Math functions:\n"
+        "━━━━━━━━━━━━━━\n"
+        "SCIENTIFIC\n"
+        "━━━━━━━━━━━━━━\n"
         "sqrt(144)\n"
         "sin(pi/2)\n"
         "cos(0)\n"
@@ -249,15 +498,57 @@ async def help_command(
         "abs(-25)\n"
         "factorial(5)\n\n"
 
-        "Constants:\n"
+        "━━━━━━━━━━━━━━\n"
+        "SHORT NUMBERS\n"
+        "━━━━━━━━━━━━━━\n"
+        "6k\n"
+        "2m\n"
+        "1.5k\n"
+        "6k*2k\n\n"
+
+        "━━━━━━━━━━━━━━\n"
+        "UNIT CONVERSION\n"
+        "━━━━━━━━━━━━━━\n"
+        "10 km to mile\n"
+        "5 mile to km\n"
+        "100 cm to m\n"
+        "2 m to feet\n"
+        "5 kg to lb\n"
+        "1000 g to kg\n"
+        "2 l to ml\n"
+        "1 gallon to liter\n\n"
+
+        "━━━━━━━━━━━━━━\n"
+        "TEMPERATURE\n"
+        "━━━━━━━━━━━━━━\n"
+        "100 c to f\n"
+        "32 f to c\n"
+        "0 c to k\n\n"
+
+        "━━━━━━━━━━━━━━\n"
+        "COMBINATION\n"
+        "━━━━━━━━━━━━━━\n"
+        "5C2\n"
+        "10C3\n\n"
+
+        "━━━━━━━━━━━━━━\n"
+        "PERMUTATION\n"
+        "━━━━━━━━━━━━━━\n"
+        "5P2\n"
+        "10P3\n\n"
+
+        "━━━━━━━━━━━━━━\n"
+        "CONSTANTS\n"
+        "━━━━━━━━━━━━━━\n"
         "pi\n"
+        "π\n"
         "e"
     )
 
 
-# =========================
+# ==================================================
 # CALCULATOR MESSAGE
-# =========================
+# ==================================================
 
 async def calculator(
     update: Update,
@@ -270,40 +561,40 @@ async def calculator(
 
         result = calculate(text)
 
-        formatted = format_result(result)
+        answer = format_result(result)
 
         await update.message.reply_text(
             f"🧮 {text}\n\n"
-            f"= {formatted}"
+            f"= {answer}"
         )
 
     except ZeroDivisionError:
 
         await update.message.reply_text(
-            "❌ 0 দিয়ে ভাগ করা যাবে না।"
+            "❌ 0 দিয়ে ভাগ করা যায় না।"
         )
 
     except Exception:
 
         await update.message.reply_text(
             "❌ হিসাবটি বুঝতে পারিনি।\n\n"
-            "Example:\n"
+            "উদাহরণ:\n"
             "25+35\n"
-            "150/50*3\n"
             "sqrt(144)\n"
-            "2^10"
+            "10 km to mile\n"
+            "5C2"
         )
 
 
-# =========================
-# RUN BOT
-# =========================
+# ==================================================
+# MAIN
+# ==================================================
 
 def main():
 
-    if TOKEN == "তোমার_BOT_TOKEN":
+    if TOKEN == "8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY":
 
-        print("❌ Bot Token বসাও।")
+        print("8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY")
         return
 
     app = Application.builder().token(TOKEN).build()
@@ -323,14 +614,14 @@ def main():
         )
     )
 
-    print("🤖 Calculator Bot is running...")
+    print("🤖 FULL Calculator Bot is running...")
 
     app.run_polling()
 
 
-# =========================
-# START
-# =========================
+# ==================================================
+# RUN
+# ==================================================
 
 if __name__ == "__main__":
     main()
