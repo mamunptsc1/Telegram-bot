@@ -15,7 +15,7 @@ from telegram.ext import (
 # BOT TOKEN
 # ==================================================
 
-TOKEN = "PASTE_YOUR_NEW_BOT_TOKEN_HERE"
+TOKEN = "8825245676:AAG8ezv5t12idOuE0mjoTpRNlOYkYkSzs7o"
 
 
 # ==================================================
@@ -374,7 +374,7 @@ async def calculator(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ==================================================
 
 def main():
-    if TOKEN == "PASTE_YOUR_NEW_BOT_TOKEN_HERE":
+    if TOKEN == "8825245676:AAG8ezv5t12idOuE0mjoTpRNlOYkYkSzs7o":
         print("❌ Bot Token বসাও।")
         return
 
