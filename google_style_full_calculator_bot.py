@@ -30,7 +30,7 @@ from telegram.ext import (
 # ============================================================
 # BOT TOKEN — put your NEW BotFather token here
 # ============================================================
-TOKEN = "PASTE_YOUR_NEW_BOT_TOKEN_HERE"
+TOKEN = "8825245676:AAEQVqJrbHySGbKW6M9DQx9c2sFehIdXHeY"
 
 # ============================================================
 # SCIENTIFIC FUNCTIONS / CONSTANTS
